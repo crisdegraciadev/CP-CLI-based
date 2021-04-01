@@ -15,13 +15,13 @@ class Logger:
 
     def log(self,message,file=stdout):
         if self.verbose:
-            print(message)
+            print(f'\033[0;32m{message}\033[0m')
 
     def warn(self,message,file=stderr):
-        print(f'WARNING: {message}', file=file)
+        print(f'\033[0;33mWARNING: {message}\033[0m', file=file)
 
     def error(self,message,file=stderr):
-        print(f'ERROR: {message}', file=file)
+        print(f'\033[0;31mERROR: {message}\033[0m', file=file)
 
 logger = Logger()
 
