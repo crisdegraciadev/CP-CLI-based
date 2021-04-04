@@ -30,22 +30,29 @@ def dump(src: Path, dest: Path):
         d.write(s.read())
 
 
-def copy_directory(src: Path, dest: Path, override=False):
+def copy_directory(src: Path, dest: Path, override=False,interactive=False):
     for src_child in src.iterdir():
         dest_child = dest / src_child.name
         if src_child.is_dir():
             logger.log(f'Copy dir {src_child} -> {dest_child}')
             dest_child.mkdir(exist_ok=True)
-            copy_directory(src_child,dest_child,override)
+            copy_directory(src_child, dest_child, override, interactive)
         elif src_child.is_file():
-            if dest_child.is_file() and not override:
-                logger.warn(f'Skipping {src_child} -> {dest_child} as -o is not pressent',file=stderr)
-            else:
+            confirmed = True
+            if dest_child.is_file():
+                if interactive:
+                    confirmed = 'y' in input(f'Override {dest_child} ? [No/yes]: ').lower()
+                elif not override:
+                    confirmed = False
+    
+            if confirmed:
                 logger.log(f'Copy file {src_child} -> {dest_child}')
                 dest_child.touch()
-                dump(src_child,dest_child)
+                dump(src_child, dest_child)
+            else:
+                logger.log(f'Skipping {src_child} -> {dest_child}')
         else:
-            logger.log(f'Skipping {src_child} because file type is not supported', file=stderr)
+            logger.error(f'Skipping {src_child} because file type is not supported')
 
 
 def copy_file(src: Path, dest: Path, override=False):
@@ -58,7 +65,7 @@ def copy_file(src: Path, dest: Path, override=False):
     dump(src, dest)
 
 
-def copy(src: str, dest: str, override=False, recursive=False):
+def copy(src: str, dest: str, override=False, recursive=False,interactive=False):
     if(src.is_file()):
         copy_file(src, dest, override)
     elif src.is_dir():
@@ -66,12 +73,11 @@ def copy(src: str, dest: str, override=False, recursive=False):
         if not dest_is_dir and dest.exists():
             raise CpError(f'Destination {dest} is not a directory')
         if not recursive:
-            raise CpError(
-                f'Skipping directory {src} because -r is not pressent')
+            raise CpError(f'Skipping directory {src} because -r is not pressent')
         if dest_is_dir:
             dest = dest / src.name
         dest.mkdir(exist_ok=True)
-        copy_directory(src, dest, override)
+        copy_directory(src, dest, override,interactive)
     else:
         raise CpError('File type not supported')
 
@@ -81,10 +87,16 @@ def cli() -> argparse.Namespace:
         prog='cp',
         description='cp command implementation in Python'
     )
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         '-o', '--override',
         action='store_true',
         help='Override destination files if they already exists'
+    )
+    group.add_argument(
+        '-i', '--interactive',
+        action='store_true',
+        help='Give details about actions being performed'
     )
     parser.add_argument(
         '-r', '--recursive',
@@ -114,10 +126,12 @@ def main():
     args = cli()
     try:
         logger.set_verbosity(args.verbose)
-        copy(args.source, args.destination, args.override, args.recursive)
+        copy(args.source, args.destination, args.override, args.recursive,args.interactive)
     except CpError as e:
         logger.error(e)
         exit(1)
+    except KeyboardInterrupt:
+        logger.warn('\nInterrupted')
 
 
 if __name__ == '__main__':
